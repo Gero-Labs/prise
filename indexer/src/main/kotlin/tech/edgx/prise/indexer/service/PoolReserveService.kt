@@ -99,6 +99,11 @@ class PoolReserveService : KoinComponent {
                             }
 
                             // Deduplicate by (pool_id, time), keeping the last occurrence
+                            // ORDERING ASSUMPTION: processedReserves maintains block transaction order
+                            // (from block.transactionBodies). For same pool in same block (same time),
+                            // .last() gives final pool state after all transactions, which is correct.
+                            // Example: If tx1 and tx2 both update pool X in block N, we want reserves
+                            // after tx2 (chronologically last), which is .last() in the list.
                             val deduplicatedReserves = processedReserves
                                 .groupBy { it.poolId to it.time }
                                 .map { it.value.last() }
