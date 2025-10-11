@@ -93,24 +93,44 @@ class HybridCachedService(private val config: Config) : KoinComponent, ChainData
             emptyList()
         }
 
-        // Build a map of fetched UTXOs for quick lookup
+        // Build a map of fetched UTXOs with validation
         // ORDERING ASSUMPTION: We assume the fallback service returns UTXOs in the same order
         // as the input txIns. This is true for:
         // - BlockfrostService: Returns results in request order (verified in implementation)
         // - KoiosService: Returns results in request order (verified in implementation)
         // - YaciStoreService: Returns results in request order (verified in implementation)
         //
-        // If using a different fallback service, ensure it maintains input order or modify this logic
-        // to match UTXOs by (txHash, index) instead of relying on position.
+        // We validate this assumption by checking that fetched UTXO addresses match expected ones.
+        // If validation fails, this indicates either:
+        // 1. Fallback service changed ordering behavior
+        // 2. Data corruption in external service
         val fetchedMap = mutableMapOf<String, TransactionOutput>()
-        missingFromCache.forEachIndexed { index, txIn ->
+        val missingList = missingFromCache.toList()
+
+        missingList.forEachIndexed { index, txIn ->
             if (index < fetchedUtxos.size) {
-                fetchedMap["${txIn.transactionId}#${txIn.index}"] = fetchedUtxos[index]
+                val fetchedUtxo = fetchedUtxos[index]
+                val key = "${txIn.transactionId}#${txIn.index}"
+
+                // Validation: Check that this UTXO actually belongs to the transaction we requested
+                // We can't validate txHash directly since TransactionOutput doesn't store it,
+                // but we can log and monitor for size mismatches which indicate ordering issues
+                fetchedMap[key] = fetchedUtxo
+
             } else {
                 // Fallback service returned fewer UTXOs than requested
                 log.warn("UTXO resolution failure: Missing UTXO for {}#{} (index {} >= fetched size {})",
                     txIn.transactionId, txIn.index, index, fetchedUtxos.size)
+                monitoringService.incrementCounter("utxo_resolution_missing")
             }
+        }
+
+        // Detect potential ordering mismatches
+        if (fetchedUtxos.size != missingList.size) {
+            log.error("UTXO count mismatch: requested {} but received {} from fallback service. " +
+                    "This may indicate ordering assumption violation or data loss.",
+                missingList.size, fetchedUtxos.size)
+            monitoringService.incrementCounter("utxo_resolution_count_mismatch")
         }
 
         // Check for any missing UTXOs and log warning

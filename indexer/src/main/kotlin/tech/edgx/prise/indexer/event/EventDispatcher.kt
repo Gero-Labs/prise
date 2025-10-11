@@ -46,11 +46,14 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                             log.debug("EventDispatcher: Received block {}, slot={}", event.block.header.headerBody.blockNumber, event.block.header.headerBody.slot)
 
                             // Cache UTXOs from this block for future use
+                            // CRITICAL: Cache failures degrade performance over time as hit rate drops
                             event.block.transactionBodies.forEach { txBody ->
                                 try {
                                     utxoCache.addOutputs(txBody.txHash, txBody.outputs)
                                 } catch (e: Exception) {
-                                    log.warn("Failed to cache UTXOs for tx ${txBody.txHash}: ${e.message}")
+                                    log.error("Failed to cache UTXOs for tx ${txBody.txHash}: ${e.message}", e)
+                                    monitoringService.incrementCounter("utxo_cache_add_failed")
+                                    // Continue processing - cache failure shouldn't stop block processing
                                 }
                             }
 
@@ -142,9 +145,28 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                     monitoringService.incrementCounter("event_processing_failed")
 
                     // Signal appropriate completion based on event type
+                    // IMPORTANT: Only signal completion for events that actually complete the block processing cycle
+                    // BlockReceivedEvent errors should NOT signal completion as the block was never fully processed
                     when (event) {
                         is RollbackEvent -> chainService.signalRollbackProcessed()
-                        else -> if (event.isFinalBlockEvent) chainService.signalBlockProcessed()
+                        is BlockReceivedEvent -> {
+                            // DO NOT signal block processed - block processing failed and needs retry
+                            log.error("Block processing failed, ChainService will retry or handle error")
+                        }
+                        is PoolReservesComputedEvent -> {
+                            // Only signal if this was the final event for this block
+                            if (event.isFinalBlockEvent) {
+                                chainService.signalBlockProcessed()
+                            }
+                        }
+                        is PricesCalculatedEvent -> {
+                            // PricesCalculatedEvent always signals block processed
+                            chainService.signalBlockProcessed()
+                        }
+                        is SwapsComputedEvent -> {
+                            // SwapsComputedEvent doesn't directly signal - it triggers PricesCalculatedEvent
+                            // No signal needed here
+                        }
                     }
                 }
             }

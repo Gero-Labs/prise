@@ -12,12 +12,15 @@ import java.util.concurrent.ConcurrentHashMap
  * **Thread Safety**:
  * - Uses ConcurrentHashMap for cache storage (thread-safe reads)
  * - Uses ArrayDeque for LRU tracking (NOT thread-safe)
- * - All mutations (addOutputs, removeSpentUtxos, clear) are synchronized on class instance
+ * - All mutations (addOutputs, clear) are synchronized on class instance
  * - Read operations (getUtxo, getUtxos) are lock-free for better performance
  * - The insertionOrder ArrayDeque is only accessed within synchronized blocks
  *
  * **Usage**: This class is designed for single-writer (EventDispatcher), multiple-reader scenarios.
  * All write operations MUST go through the synchronized methods to prevent corruption.
+ *
+ * **Note**: UTXOs are never explicitly removed when spent. The LRU eviction policy automatically
+ * removes oldest entries when cache reaches capacity, which is sufficient for our use case.
  */
 class UtxoCache(private val maxSize: Int = 100000) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -67,17 +70,6 @@ class UtxoCache(private val maxSize: Int = 100000) {
             val key = "$txHash#$index"
             cache[key]?.let { key to it }
         }.toMap()
-    }
-
-    /**
-     * Remove UTXOs that have been spent (consumed as inputs)
-     */
-    fun removeSpentUtxos(txHash: String, outputIndex: Int) {
-        val key = "$txHash#$outputIndex"
-        synchronized(this) {
-            cache.remove(key)
-            insertionOrder.remove(key)
-        }
     }
 
     /**
