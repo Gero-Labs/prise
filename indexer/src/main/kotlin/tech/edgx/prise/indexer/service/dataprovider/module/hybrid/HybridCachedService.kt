@@ -11,6 +11,8 @@ import tech.edgx.prise.indexer.config.Config
 import tech.edgx.prise.indexer.domain.BlockView
 import tech.edgx.prise.indexer.service.UtxoCache
 import tech.edgx.prise.indexer.service.dataprovider.ChainDatabaseService
+import tech.edgx.prise.indexer.service.monitoring.MonitoringService
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Hybrid chain database service that uses UTXO cache first, then falls back
@@ -25,12 +27,16 @@ class HybridCachedService(private val config: Config) : KoinComponent, ChainData
     // UTXO cache
     private val utxoCache: UtxoCache by inject()
 
-    private var cacheHits = 0L
-    private var cacheMisses = 0L
-    private var totalQueries = 0L
+    // Monitoring service for metrics
+    private val monitoringService: MonitoringService by inject(parameters = { parametersOf(config.metricsServerPort) })
+
+    // Thread-safe counters for cache statistics
+    private val cacheHits = AtomicLong(0)
+    private val cacheMisses = AtomicLong(0)
+    private val totalQueries = AtomicLong(0)
 
     override fun getInputUtxos(txIns: Set<TransactionInput>): List<TransactionOutput> {
-        totalQueries++
+        totalQueries.incrementAndGet()
 
         // Try to get from cache first
         val references = txIns.map { it.transactionId to it.index }
@@ -44,21 +50,32 @@ class HybridCachedService(private val config: Config) : KoinComponent, ChainData
             val cached = cachedUtxos[key]
             if (cached != null) {
                 foundInCache.add(cached)
-                cacheHits++
+                cacheHits.incrementAndGet()
             } else {
                 missingFromCache.add(txIn)
-                cacheMisses++
+                cacheMisses.incrementAndGet()
             }
         }
 
-        // Log cache performance periodically
-        if (totalQueries % 100 == 0L) {
-            val hitRate = if (cacheHits + cacheMisses > 0) {
-                (cacheHits.toDouble() / (cacheHits + cacheMisses) * 100).toInt()
+        // Update metrics and log cache performance periodically
+        val currentQueries = totalQueries.get()
+        if (currentQueries % 100 == 0L) {
+            val hits = cacheHits.get()
+            val misses = cacheMisses.get()
+            val hitRate = if (hits + misses > 0) {
+                (hits.toDouble() / (hits + misses) * 100).toInt()
             } else 0
             val stats = utxoCache.getStats()
+
+            // Expose metrics
+            monitoringService.setGaugeValue("utxo_cache_hit_rate_percent", hitRate.toDouble())
+            monitoringService.setGaugeValue("utxo_cache_hits_total", hits.toDouble())
+            monitoringService.setGaugeValue("utxo_cache_misses_total", misses.toDouble())
+            monitoringService.setGaugeValue("utxo_cache_size", stats.size.toDouble())
+            monitoringService.setGaugeValue("utxo_cache_utilization_percent", stats.utilizationPercent.toDouble())
+
             log.info("UTXO Cache Stats: hit_rate={}%, hits={}, misses={}, cache_size={}/{} ({}%)",
-                hitRate, cacheHits, cacheMisses, stats.size, stats.maxSize, stats.utilizationPercent)
+                hitRate, hits, misses, stats.size, stats.maxSize, stats.utilizationPercent)
         }
 
         // If all found in cache, return immediately
@@ -77,7 +94,14 @@ class HybridCachedService(private val config: Config) : KoinComponent, ChainData
         }
 
         // Build a map of fetched UTXOs for quick lookup
-        // Note: Fallback service returns in order matching missingFromCache input
+        // ORDERING ASSUMPTION: We assume the fallback service returns UTXOs in the same order
+        // as the input txIns. This is true for:
+        // - BlockfrostService: Returns results in request order (verified in implementation)
+        // - KoiosService: Returns results in request order (verified in implementation)
+        // - YaciStoreService: Returns results in request order (verified in implementation)
+        //
+        // If using a different fallback service, ensure it maintains input order or modify this logic
+        // to match UTXOs by (txHash, index) instead of relying on position.
         val fetchedMap = mutableMapOf<String, TransactionOutput>()
         missingFromCache.forEachIndexed { index, txIn ->
             if (index < fetchedUtxos.size) {

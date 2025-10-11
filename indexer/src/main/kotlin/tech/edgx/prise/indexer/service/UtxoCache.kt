@@ -29,17 +29,18 @@ class UtxoCache(private val maxSize: Int = 100000) {
     private val insertionOrder = ArrayDeque<String>()
 
     /**
-     * Add outputs from a transaction to the cache
+     * Add outputs from a transaction to the cache.
+     * Thread-safe: entire operation is synchronized to prevent race conditions.
      */
     fun addOutputs(txHash: String, outputs: List<TransactionOutput>) {
-        outputs.forEachIndexed { index, output ->
-            val key = "$txHash#$index"
-            synchronized(this) {
+        synchronized(this) {
+            outputs.forEachIndexed { index, output ->
+                val key = "$txHash#$index"
                 if (!cache.containsKey(key)) {
                     // Evict oldest if at capacity
-                    if (cache.size >= maxSize) {
-                        val oldest = insertionOrder.removeFirstOrNull()
-                        oldest?.let { cache.remove(it) }
+                    while (cache.size >= maxSize && insertionOrder.isNotEmpty()) {
+                        val oldest = insertionOrder.removeFirst()
+                        cache.remove(oldest)
                     }
                     cache[key] = output
                     insertionOrder.addLast(key)

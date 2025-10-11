@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS pool_reserve(
     reserve1 DECIMAL(38,0) NOT NULL, -- Reserve amount of asset1
     reserve2 DECIMAL(38,0) NOT NULL, -- Reserve amount of asset2
     tx_id BIGINT NOT NULL,           -- Transaction that updated the reserves
-    PRIMARY KEY (pool_id, time)
+    PRIMARY KEY (pool_id, time),
+    CONSTRAINT fk_pool_reserve_asset1 FOREIGN KEY (asset1_id) REFERENCES asset(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pool_reserve_asset2 FOREIGN KEY (asset2_id) REFERENCES asset(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pool_reserve_tx FOREIGN KEY (tx_id) REFERENCES tx(id) ON DELETE CASCADE
 );
 
 -- Index for querying latest reserves by pool
@@ -28,7 +31,10 @@ CREATE TABLE IF NOT EXISTS latest_pool_reserve(
     time BIGINT NOT NULL,
     reserve1 DECIMAL(38,0) NOT NULL,
     reserve2 DECIMAL(38,0) NOT NULL,
-    tx_id BIGINT NOT NULL
+    tx_id BIGINT NOT NULL,
+    CONSTRAINT fk_latest_pool_reserve_asset1 FOREIGN KEY (asset1_id) REFERENCES asset(id) ON DELETE CASCADE,
+    CONSTRAINT fk_latest_pool_reserve_asset2 FOREIGN KEY (asset2_id) REFERENCES asset(id) ON DELETE CASCADE,
+    CONSTRAINT fk_latest_pool_reserve_tx FOREIGN KEY (tx_id) REFERENCES tx(id) ON DELETE CASCADE
 );
 
 -- Index for querying by provider
