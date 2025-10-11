@@ -1,6 +1,7 @@
 package tech.edgx.prise.indexer.service.classifier
 
 import tech.edgx.prise.indexer.model.FullyQualifiedTxDTO
+import tech.edgx.prise.indexer.model.dex.PoolReserveDTO
 import tech.edgx.prise.indexer.model.dex.SwapDTO
 
 interface DexClassifier {
@@ -8,4 +9,5 @@ interface DexClassifier {
     fun getDexName(): String
     fun getPoolScriptHash(): List<String>
     fun computeSwaps(txDTO: FullyQualifiedTxDTO): List<SwapDTO>
+    fun computePoolReserves(txDTO: FullyQualifiedTxDTO): List<PoolReserveDTO>
 }

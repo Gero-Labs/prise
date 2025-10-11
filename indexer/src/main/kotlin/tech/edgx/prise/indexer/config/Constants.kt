@@ -33,4 +33,5 @@ object Constants {
     const val MESSAGING_USERNAME_PROPERTY = "messaging.username"
     const val MESSAGING_PASSWORD_PROPERTY = "messaging.password"
     const val LOG_ENV_PROPERTY = "log.env"
+    const val EVENT_BUS_BUFFER_SIZE_PROPERTY = "event.bus.buffer.size"
 }

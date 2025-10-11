@@ -77,6 +77,12 @@ class Configurer(private val configFile: String?) : KoinComponent {
         if (logEnvFromEnv) envOverrides.add("${Constants.LOG_ENV_PROPERTY}=$logEnv")
         config.logEnv = logEnv
 
+        val (eventBusBufferSize, eventBusBufferSizeFromEnv) = helpers.getInt(
+            Constants.EVENT_BUS_BUFFER_SIZE_PROPERTY, "EVENT_BUS_BUFFER_SIZE", 50
+        )
+        if (eventBusBufferSizeFromEnv) envOverrides.add("${Constants.EVENT_BUS_BUFFER_SIZE_PROPERTY}=$eventBusBufferSize")
+        config.eventBusBufferSize = eventBusBufferSize ?: 50
+
         val (appDbUrl, appDbUrlFromEnv) = helpers.getValue(
             Constants.APP_DB_URL_PROPERTY, "jdbc:mysql://localhost:3306/realfi", "APP_DATASOURCE_URL"
         )

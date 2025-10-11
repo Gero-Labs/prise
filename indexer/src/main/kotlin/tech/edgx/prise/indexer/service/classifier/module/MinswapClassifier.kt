@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 import tech.edgx.prise.indexer.model.DexEnum
 import tech.edgx.prise.indexer.model.DexOperationEnum
 import tech.edgx.prise.indexer.model.FullyQualifiedTxDTO
+import tech.edgx.prise.indexer.model.dex.PoolReserveDTO
 import tech.edgx.prise.indexer.model.dex.SwapDTO
 import tech.edgx.prise.indexer.service.classifier.DexClassifier
 import tech.edgx.prise.indexer.service.classifier.common.ClassifierHelpers
@@ -163,5 +164,63 @@ object MinswapClassifier: DexClassifier {
             swapDTOS.add(swapDTO)
         }
         return swapDTOS
+    }
+
+    override fun computePoolReserves(txDTO: FullyQualifiedTxDTO): List<PoolReserveDTO> {
+        log.debug("Computing pool reserves for tx: ${txDTO.txHash}")
+
+        val outputDatumPair = txDTO.outputUtxos
+            ?.firstOrNull { POOL_SCRIPT_HASHES.contains(Helpers.convertScriptAddressToPaymentCredential(it.address)) }
+            ?.let { txOut ->
+                val datum = ClassifierHelpers.getPlutusDataFromOutput(txOut, txDTO.witnesses.datums)?: return emptyList()
+                Pair(txOut, datum)
+            } ?: return emptyList()
+
+        val lpDatumJsonNode = JsonUtil.parseJson(PlutusDataJsonConverter.toJson(outputDatumPair.second))
+
+        // Extract asset units from datum
+        val asset1Unit = when (lpDatumJsonNode.get("fields")?.get(0)?.get("fields")?.get(0)?.get("bytes")?.isEmpty) {
+            true -> "lovelace"
+            false -> lpDatumJsonNode.get("fields")?.get(0)?.get("fields")?.get(0)?.get("bytes")?.asText()?.plus(
+                     lpDatumJsonNode.get("fields")?.get(0)?.get("fields")?.get(1)?.get("bytes")?.asText())
+                        ?: return emptyList()
+            null -> return emptyList()
+        }
+        val asset2Unit = lpDatumJsonNode.get("fields")?.get(1)?.get("fields")?.get(0)?.get("bytes")?.asText()?.plus(
+                            lpDatumJsonNode.get("fields")?.get(1)?.get("fields")?.get(1)?.get("bytes")?.asText())
+                                ?: return emptyList()
+
+        // Extract reserves from pool output UTXO
+        val poolOutput = outputDatumPair.first
+        val reserve1 = when (asset1Unit) {
+            "lovelace" -> poolOutput.amounts
+                .filter { it.unit == "lovelace" }
+                .map { it.quantity }
+                .reduceOrNull { a, b -> a.plus(b) }
+                ?: return emptyList()
+            else -> poolOutput.amounts
+                .filter { it.unit.replace(".", "") == asset1Unit }
+                .map { it.quantity }
+                .reduceOrNull { a, b -> a.plus(b) }
+                ?: return emptyList()
+        }
+
+        val reserve2 = poolOutput.amounts
+            .filter { it.unit.replace(".", "") == asset2Unit }
+            .map { it.quantity }
+            .reduceOrNull { a, b -> a.plus(b) }
+            ?: return emptyList()
+
+        val poolReserveDTO = PoolReserveDTO(
+            txDTO.txHash,
+            txDTO.blockSlot,
+            DEX_CODE,
+            asset1Unit,
+            asset2Unit,
+            reserve1.toBigDecimal(),
+            reserve2.toBigDecimal()
+        )
+        log.debug("Computed pool reserve: $poolReserveDTO")
+        return listOf(poolReserveDTO)
     }
 }

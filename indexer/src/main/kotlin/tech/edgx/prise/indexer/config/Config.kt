@@ -14,6 +14,7 @@ data class Config(
     var appDatasourceDriverClassName: String = "com.mysql.cj.jdbc.Driver",
     var tokenMetadataServiceModule: String = "tokenRegistry",
     var chainDatabaseServiceModule: String = "yacistore",
+    var fallbackChainDatabaseServiceModule: String = "blockfrost",
     var carpDatasourceUrl: String? = "jdbc:postgresql://localhost:5432/carp_mainnet?currentSchema=public",
     var carpDatasourceUsername: String? = "postgres",
     var carpDatasourcePassword: String? = "<pass>",
@@ -39,6 +40,7 @@ data class Config(
     var messagingChannel: String? = "prise-events",
     var messagingUsername: String? = null,
     var messagingPassword: String? = null,
+    var eventBusBufferSize: Int = 50,
     val refreshableViews: Map<String, RefreshableView> = mapOf(
         "candle_fifteen" to RefreshableView(
             cronSchedule = "0 0/15 * * * ?", // Every 15 minutes (00, 15, 30, 45)

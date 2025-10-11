@@ -65,6 +65,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
     implementation("com.cronutils:cron-utils:9.2.1")
+    implementation("org.flywaydb:flyway-core:9.22.3")
 }
 //dependencies {
 //    implementation(libs.org.jetbrains.kotlin.kotlin.stdlib.jdk8)
@@ -139,7 +140,10 @@ publishing {
 
 // Load properties from prise.example.properties
 val props = Properties().apply {
-    file("prise.properties").inputStream().use { load(it) }
+    val propsFile = file("prise.properties")
+    if (propsFile.exists()) {
+        propsFile.inputStream().use { load(it) }
+    }
 }
 
 flyway {

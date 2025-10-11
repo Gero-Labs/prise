@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 import tech.edgx.prise.indexer.model.DexEnum
 import tech.edgx.prise.indexer.model.DexOperationEnum
 import tech.edgx.prise.indexer.model.FullyQualifiedTxDTO
+import tech.edgx.prise.indexer.model.dex.PoolReserveDTO
 import tech.edgx.prise.indexer.model.dex.SwapDTO
 import tech.edgx.prise.indexer.service.classifier.DexClassifier
 import tech.edgx.prise.indexer.service.classifier.common.ClassifierHelpers
@@ -249,5 +250,10 @@ object MinswapV2Classifier: DexClassifier {
         val amount2 = (DEFAULT_TRADING_FEE_DENOMINATOR-tradingFee) * amount1 * reserveOut / ( reserveIn *
                 DEFAULT_TRADING_FEE_DENOMINATOR + (DEFAULT_TRADING_FEE_DENOMINATOR-tradingFee) * amount1)
         return Pair(amount1, amount2)
+    }
+
+    override fun computePoolReserves(txDTO: FullyQualifiedTxDTO): List<PoolReserveDTO> {
+        // TODO: Implement pool reserve tracking
+        return emptyList()
     }
 }

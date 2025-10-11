@@ -15,6 +15,7 @@ import tech.edgx.prise.indexer.processor.PersistenceService
 import tech.edgx.prise.indexer.processor.PriceProcessor
 import tech.edgx.prise.indexer.processor.SwapProcessor
 import tech.edgx.prise.indexer.service.DbService
+import tech.edgx.prise.indexer.service.PoolReserveService
 import tech.edgx.prise.indexer.service.chain.ChainService
 import tech.edgx.prise.indexer.service.monitoring.MonitoringService
 import tech.edgx.prise.indexer.util.Helpers
@@ -24,10 +25,12 @@ class EventDispatcher(private val config: Config) : KoinComponent {
     private val eventBus: EventBus by inject { parametersOf(config) }
     private val swapProcessor: SwapProcessor by inject { parametersOf(config) }
     private val priceProcessor: PriceProcessor by inject { parametersOf(config) }
+    private val poolReserveService: PoolReserveService by inject()
     private val dbService: DbService by inject()
     private val persistenceService: PersistenceService by inject { parametersOf(config) }
     private val chainService: ChainService by inject { parametersOf(config) }
     private val monitoringService: MonitoringService by inject { parametersOf(config.metricsServerPort) }
+    private val utxoCache: tech.edgx.prise.indexer.service.UtxoCache by inject()
 
     private val eventPublisher: EventPublisher by inject { parametersOf(config) }
 
@@ -40,15 +43,44 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                 try {
                     when (event) {
                         is BlockReceivedEvent -> {
-                            log.debug("Processing BlockReceivedEvent for block {}", event.block.header.headerBody.blockNumber)
-                            val swapsEvent = swapProcessor.processBlock(event.block)
-                            log.debug("Processed BlockReceivedEvent")
+                            log.debug("EventDispatcher: Received block {}, slot={}", event.block.header.headerBody.blockNumber, event.block.header.headerBody.slot)
+
+                            // Cache UTXOs from this block for future use
+                            // CRITICAL: Cache failures degrade performance over time as hit rate drops
+                            event.block.transactionBodies.forEach { txBody ->
+                                try {
+                                    utxoCache.addOutputs(txBody.txHash, txBody.outputs)
+                                } catch (e: Exception) {
+                                    log.error("Failed to cache UTXOs for tx ${txBody.txHash}: ${e.message}", e)
+                                    monitoringService.incrementCounter("utxo_cache_add_failed")
+                                    // Continue processing - cache failure shouldn't stop block processing
+                                }
+                            }
+
+                            val (swapsEvent, poolReservesEvent) = swapProcessor.processBlock(event.block)
+                            log.debug("EventDispatcher: Processed block, publishing events")
                             eventBus.publish(swapsEvent)
+                            eventBus.publish(poolReservesEvent)
                         }
                         is SwapsComputedEvent -> {
                             log.debug("Processing SwapsComputedEvent with {} swaps", event.swaps.size)
                             val pricesEvent = priceProcessor.processSwaps(event.swaps, event.blockSlot)
                             eventBus.publish(pricesEvent)
+                        }
+                        is PoolReservesComputedEvent -> {
+                            if (event.poolReserves.isNotEmpty()) {
+                                try {
+                                    poolReserveService.batchInsertOrUpdateCombined(event.poolReserves)
+                                    log.info("Persisted {} pool reserves", event.poolReserves.size)
+                                } catch (e: Exception) {
+                                    log.error("Failed to persist pool reserves", e)
+                                    monitoringService.incrementCounter("pool_reserve_persist_failed")
+                                }
+                            }
+                            // Signal block processed only if this is the final event (no swaps to process)
+                            if (event.isFinalBlockEvent) {
+                                chainService.signalBlockProcessed()
+                            }
                         }
                         is PricesCalculatedEvent -> {
                             log.debug("Processing PricesCalculatedEvent with {} prices", event.prices.size)
@@ -102,12 +134,39 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                         }
                     }
                 } catch (e: Exception) {
-                    log.error("Error processing event $event", e)
+                    val errorContext = when (event) {
+                        is BlockReceivedEvent -> "block=${event.block.header.headerBody.blockNumber}, slot=${event.block.header.headerBody.slot}"
+                        is SwapsComputedEvent -> "slot=${event.blockSlot}, swaps=${event.swaps.size}"
+                        is PoolReservesComputedEvent -> "slot=${event.blockSlot}, reserves=${event.poolReserves.size}"
+                        is PricesCalculatedEvent -> "slot=${event.blockSlot}, prices=${event.prices.size}"
+                        is RollbackEvent -> "point=${event.point.slot}"
+                    }
+                    log.error("Error processing event: $errorContext - ${e.message}", e)
                     monitoringService.incrementCounter("event_processing_failed")
-                    if (event.isFinalBlockEvent) {
-                        chainService.signalBlockProcessed()
-                    } else if (event is RollbackEvent) {
-                        chainService.signalRollbackProcessed() // Ensure rollback latch is released
+
+                    // Signal appropriate completion based on event type
+                    // IMPORTANT: Only signal completion for events that actually complete the block processing cycle
+                    // BlockReceivedEvent errors should NOT signal completion as the block was never fully processed
+                    when (event) {
+                        is RollbackEvent -> chainService.signalRollbackProcessed()
+                        is BlockReceivedEvent -> {
+                            // DO NOT signal block processed - block processing failed and needs retry
+                            log.error("Block processing failed, ChainService will retry or handle error")
+                        }
+                        is PoolReservesComputedEvent -> {
+                            // Only signal if this was the final event for this block
+                            if (event.isFinalBlockEvent) {
+                                chainService.signalBlockProcessed()
+                            }
+                        }
+                        is PricesCalculatedEvent -> {
+                            // PricesCalculatedEvent always signals block processed
+                            chainService.signalBlockProcessed()
+                        }
+                        is SwapsComputedEvent -> {
+                            // SwapsComputedEvent doesn't directly signal - it triggers PricesCalculatedEvent
+                            // No signal needed here
+                        }
                     }
                 }
             }

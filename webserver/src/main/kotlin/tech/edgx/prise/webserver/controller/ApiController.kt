@@ -19,10 +19,18 @@ import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.validation.FieldError
 import tech.edgx.prise.webserver.model.tokens.AssetResponse
+import tech.edgx.prise.webserver.model.tokens.GainerAssetResponse
 import tech.edgx.prise.webserver.model.tokens.TopByVolumeRequest
 import tech.edgx.prise.webserver.model.tokens.TopByVolumeResponse
+import tech.edgx.prise.webserver.model.tokens.TopGainersRequest
+import tech.edgx.prise.webserver.model.tokens.TopGainersResponse
+import tech.edgx.prise.webserver.model.tvl.TopTvlRequest
+import tech.edgx.prise.webserver.model.tvl.TopTvlResponse
+import tech.edgx.prise.webserver.model.tvl.PoolTvlResponse
 import tech.edgx.prise.webserver.service.AssetService
 import tech.edgx.prise.webserver.validator.GetTopByVolumeValidator
+import tech.edgx.prise.webserver.validator.GetTopGainersValidator
+import tech.edgx.prise.webserver.validator.GetTopTvlValidator
 import java.time.LocalDateTime
 
 @Controller("ApiController")
@@ -38,6 +46,12 @@ class ApiController {
 
     @Resource(name = "getTopByVolumeValidator")
     lateinit var getTopByVolumeValidator: GetTopByVolumeValidator
+
+    @Resource(name = "getTopGainersValidator")
+    lateinit var getTopGainersValidator: GetTopGainersValidator
+
+    @Resource(name = "getTopTvlValidator")
+    lateinit var getTopTvlValidator: GetTopTvlValidator
 
     @Resource(name = "priceService")
     lateinit var priceService: PriceService
@@ -69,6 +83,54 @@ class ApiController {
             val assets: Set<AssetResponse> = assetService.getTopByVolume(topByVolumeRequest)
             val response = TopByVolumeResponse(date = LocalDateTime.now(), assets = assets)
             log.debug("Returning Assets data, #: {}", assets.size)
+            return ResponseEntity.ok(response)
+        } else {
+            throw InvalidRequestException(errors)
+        }
+    }
+
+    @RequestMapping(value = ["/tokens/top-gainers"], method = [RequestMethod.GET], produces = [MediaType.APPLICATION_JSON_VALUE])
+    @ResponseBody
+    @Throws(Exception::class)
+    fun getTopGainers(@Valid @ModelAttribute topGainersRequest: TopGainersRequest, errors: BindingResult): ResponseEntity<TopGainersResponse?> {
+        getTopGainersValidator.validate(topGainersRequest, errors)
+        log.debug("Form: {}, Has errors: {}", topGainersRequest, errors.hasErrors())
+        if (!errors.hasErrors()) {
+            val assets: Set<GainerAssetResponse> = assetService.getTopGainers(topGainersRequest)
+            val response = TopGainersResponse(date = LocalDateTime.now(), assets = assets)
+            log.debug("Returning Top Gainers data, #: {}", assets.size)
+            return ResponseEntity.ok(response)
+        } else {
+            throw InvalidRequestException(errors)
+        }
+    }
+
+    @RequestMapping(value = ["/tokens/top-losers"], method = [RequestMethod.GET], produces = [MediaType.APPLICATION_JSON_VALUE])
+    @ResponseBody
+    @Throws(Exception::class)
+    fun getTopLosers(@Valid @ModelAttribute topGainersRequest: TopGainersRequest, errors: BindingResult): ResponseEntity<TopGainersResponse?> {
+        getTopGainersValidator.validate(topGainersRequest, errors)
+        log.debug("Form: {}, Has errors: {}", topGainersRequest, errors.hasErrors())
+        if (!errors.hasErrors()) {
+            val assets: Set<GainerAssetResponse> = assetService.getTopLosers(topGainersRequest)
+            val response = TopGainersResponse(date = LocalDateTime.now(), assets = assets)
+            log.debug("Returning Top Losers data, #: {}", assets.size)
+            return ResponseEntity.ok(response)
+        } else {
+            throw InvalidRequestException(errors)
+        }
+    }
+
+    @RequestMapping(value = ["/tokens/top-tvl"], method = [RequestMethod.GET], produces = [MediaType.APPLICATION_JSON_VALUE])
+    @ResponseBody
+    @Throws(Exception::class)
+    fun getTopTvl(@Valid @ModelAttribute topTvlRequest: TopTvlRequest, errors: BindingResult): ResponseEntity<TopTvlResponse?> {
+        getTopTvlValidator.validate(topTvlRequest, errors)
+        log.debug("Form: {}, Has errors: {}", topTvlRequest, errors.hasErrors())
+        if (!errors.hasErrors()) {
+            val pools: List<PoolTvlResponse> = assetService.getTopTvl(topTvlRequest)
+            val response = TopTvlResponse(date = LocalDateTime.now(), pools = pools)
+            log.debug("Returning Top TVL data, #: {}", pools.size)
             return ResponseEntity.ok(response)
         } else {
             throw InvalidRequestException(errors)

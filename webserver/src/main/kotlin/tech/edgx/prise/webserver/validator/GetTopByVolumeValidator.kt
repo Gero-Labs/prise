@@ -20,8 +20,8 @@ class GetTopByVolumeValidator : Validator {
             if (!allowedNetworks.contains(form.network)) {
                 errors.rejectValue("network", "network.invalid")
             }
-            if (form.limit > 1000) {
-                errors.rejectValue("limit", "top-by-volume.limit.max")
+            if (form.limit < 1 || form.limit > 1000) {
+                errors.rejectValue("limit", "limit.invalid", "Limit must be between 1 and 1000")
             }
         }
     }
