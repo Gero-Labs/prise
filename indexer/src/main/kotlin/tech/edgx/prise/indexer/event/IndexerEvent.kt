@@ -12,7 +12,9 @@ sealed class IndexerEvent {
 }
 data class BlockReceivedEvent(val block: Block, val startTime: Long = System.currentTimeMillis()) : IndexerEvent()
 data class SwapsComputedEvent(val blockSlot: Long, val swaps: List<SwapDTO>) : IndexerEvent()
-data class PoolReservesComputedEvent(val blockSlot: Long, val poolReserves: List<PoolReserveDTO>) : IndexerEvent()
+data class PoolReservesComputedEvent(val blockSlot: Long, val poolReserves: List<PoolReserveDTO>, val hasSwaps: Boolean = true) : IndexerEvent() {
+    override val isFinalBlockEvent: Boolean = !hasSwaps
+}
 data class PricesCalculatedEvent(val blockSlot: Long, val prices: List<Price>) : IndexerEvent() {
     override val isFinalBlockEvent: Boolean = true
 }

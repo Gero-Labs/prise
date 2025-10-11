@@ -24,7 +24,7 @@ class UtxoCache(private val maxSize: Int = 100000) {
     fun addOutputs(txHash: String, outputs: List<TransactionOutput>) {
         outputs.forEachIndexed { index, output ->
             val key = "$txHash#$index"
-            synchronized(insertionOrder) {
+            synchronized(this) {
                 if (!cache.containsKey(key)) {
                     // Evict oldest if at capacity
                     if (cache.size >= maxSize) {
@@ -63,7 +63,7 @@ class UtxoCache(private val maxSize: Int = 100000) {
      */
     fun removeSpentUtxos(txHash: String, outputIndex: Int) {
         val key = "$txHash#$outputIndex"
-        synchronized(insertionOrder) {
+        synchronized(this) {
             cache.remove(key)
             insertionOrder.remove(key)
         }
@@ -73,18 +73,20 @@ class UtxoCache(private val maxSize: Int = 100000) {
      * Get cache statistics
      */
     fun getStats(): CacheStats {
-        return CacheStats(
-            size = cache.size,
-            maxSize = maxSize,
-            utilizationPercent = (cache.size.toDouble() / maxSize * 100).toInt()
-        )
+        synchronized(this) {
+            return CacheStats(
+                size = cache.size,
+                maxSize = maxSize,
+                utilizationPercent = (cache.size.toDouble() / maxSize * 100).toInt()
+            )
+        }
     }
 
     /**
      * Clear the cache
      */
     fun clear() {
-        synchronized(insertionOrder) {
+        synchronized(this) {
             cache.clear()
             insertionOrder.clear()
         }

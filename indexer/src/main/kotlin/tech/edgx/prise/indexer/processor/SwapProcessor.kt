@@ -36,7 +36,7 @@ class SwapProcessor(val config: Config) : KoinComponent {
             log.debug("SwapProcessor.processBlock: No DEX transactions in block")
             return Pair(
                 SwapsComputedEvent(blockSlot, emptyList()),
-                PoolReservesComputedEvent(blockSlot, emptyList())
+                PoolReservesComputedEvent(blockSlot, emptyList(), hasSwaps = false)
             )
         }
 
@@ -54,7 +54,7 @@ class SwapProcessor(val config: Config) : KoinComponent {
 
         return Pair(
             SwapsComputedEvent(blockSlot, swaps),
-            PoolReservesComputedEvent(blockSlot, poolReserves)
+            PoolReservesComputedEvent(blockSlot, poolReserves, hasSwaps = swaps.isNotEmpty())
         )
     }
 

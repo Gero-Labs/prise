@@ -74,9 +74,10 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                                     monitoringService.incrementCounter("pool_reserve_persist_failed")
                                 }
                             }
-                            // CRITICAL: Signal block processed if this is the final event and no prices were generated
-                            // This happens when there are no swaps in the block
-                            chainService.signalBlockProcessed()
+                            // Signal block processed only if this is the final event (no swaps to process)
+                            if (event.isFinalBlockEvent) {
+                                chainService.signalBlockProcessed()
+                            }
                         }
                         is PricesCalculatedEvent -> {
                             log.debug("Processing PricesCalculatedEvent with {} prices", event.prices.size)

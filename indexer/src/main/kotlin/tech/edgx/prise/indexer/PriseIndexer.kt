@@ -167,7 +167,9 @@ class PriseRunner(private val args: Array<String>) : KoinComponent {
         val flyway = Flyway.configure()
             .dataSource(config.appDataSource)
             .locations("classpath:db/migration")
-            .baselineOnMigrate(true)
+            // baselineOnMigrate allows Flyway to baseline existing databases without migration history.
+            // Set to false for fresh databases or after initial setup is complete.
+            .baselineOnMigrate(false)
             .load()
         val migrationsApplied = flyway.migrate()
         log.info("Applied $migrationsApplied database migration(s)")
