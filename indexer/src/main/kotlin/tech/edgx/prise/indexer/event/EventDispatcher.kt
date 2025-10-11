@@ -15,6 +15,7 @@ import tech.edgx.prise.indexer.processor.PersistenceService
 import tech.edgx.prise.indexer.processor.PriceProcessor
 import tech.edgx.prise.indexer.processor.SwapProcessor
 import tech.edgx.prise.indexer.service.DbService
+import tech.edgx.prise.indexer.service.PoolReserveService
 import tech.edgx.prise.indexer.service.chain.ChainService
 import tech.edgx.prise.indexer.service.monitoring.MonitoringService
 import tech.edgx.prise.indexer.util.Helpers
@@ -24,10 +25,12 @@ class EventDispatcher(private val config: Config) : KoinComponent {
     private val eventBus: EventBus by inject { parametersOf(config) }
     private val swapProcessor: SwapProcessor by inject { parametersOf(config) }
     private val priceProcessor: PriceProcessor by inject { parametersOf(config) }
+    private val poolReserveService: PoolReserveService by inject()
     private val dbService: DbService by inject()
     private val persistenceService: PersistenceService by inject { parametersOf(config) }
     private val chainService: ChainService by inject { parametersOf(config) }
     private val monitoringService: MonitoringService by inject { parametersOf(config.metricsServerPort) }
+    private val utxoCache: tech.edgx.prise.indexer.service.UtxoCache by inject()
 
     private val eventPublisher: EventPublisher by inject { parametersOf(config) }
 
@@ -40,15 +43,40 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                 try {
                     when (event) {
                         is BlockReceivedEvent -> {
-                            log.debug("Processing BlockReceivedEvent for block {}", event.block.header.headerBody.blockNumber)
-                            val swapsEvent = swapProcessor.processBlock(event.block)
-                            log.debug("Processed BlockReceivedEvent")
+                            log.debug("EventDispatcher: Received block {}, slot={}", event.block.header.headerBody.blockNumber, event.block.header.headerBody.slot)
+
+                            // Cache UTXOs from this block for future use
+                            event.block.transactionBodies.forEach { txBody ->
+                                try {
+                                    utxoCache.addOutputs(txBody.txHash, txBody.outputs)
+                                } catch (e: Exception) {
+                                    log.warn("Failed to cache UTXOs for tx ${txBody.txHash}: ${e.message}")
+                                }
+                            }
+
+                            val (swapsEvent, poolReservesEvent) = swapProcessor.processBlock(event.block)
+                            log.debug("EventDispatcher: Processed block, publishing events")
                             eventBus.publish(swapsEvent)
+                            eventBus.publish(poolReservesEvent)
                         }
                         is SwapsComputedEvent -> {
                             log.debug("Processing SwapsComputedEvent with {} swaps", event.swaps.size)
                             val pricesEvent = priceProcessor.processSwaps(event.swaps, event.blockSlot)
                             eventBus.publish(pricesEvent)
+                        }
+                        is PoolReservesComputedEvent -> {
+                            if (event.poolReserves.isNotEmpty()) {
+                                try {
+                                    poolReserveService.batchInsertOrUpdateCombined(event.poolReserves)
+                                    log.info("Persisted {} pool reserves", event.poolReserves.size)
+                                } catch (e: Exception) {
+                                    log.error("Failed to persist pool reserves", e)
+                                    monitoringService.incrementCounter("pool_reserve_persist_failed")
+                                }
+                            }
+                            // CRITICAL: Signal block processed if this is the final event and no prices were generated
+                            // This happens when there are no swaps in the block
+                            chainService.signalBlockProcessed()
                         }
                         is PricesCalculatedEvent -> {
                             log.debug("Processing PricesCalculatedEvent with {} prices", event.prices.size)

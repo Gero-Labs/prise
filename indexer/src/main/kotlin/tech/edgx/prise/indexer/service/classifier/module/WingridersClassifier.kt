@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory
 import tech.edgx.prise.indexer.model.DexEnum
 import tech.edgx.prise.indexer.model.DexOperationEnum
 import tech.edgx.prise.indexer.model.FullyQualifiedTxDTO
+import tech.edgx.prise.indexer.model.dex.PoolReserveDTO
 import tech.edgx.prise.indexer.model.dex.SwapDTO
 import tech.edgx.prise.indexer.service.classifier.DexClassifier
 import tech.edgx.prise.indexer.service.classifier.common.ClassifierHelpers
@@ -210,5 +211,10 @@ object WingridersClassifier: DexClassifier {
                 }
             }
         }
+    }
+
+    override fun computePoolReserves(txDTO: FullyQualifiedTxDTO): List<PoolReserveDTO> {
+        // TODO: Implement pool reserve tracking
+        return emptyList()
     }
 }

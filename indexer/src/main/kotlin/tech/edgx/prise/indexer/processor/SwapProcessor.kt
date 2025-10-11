@@ -9,6 +9,7 @@ import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 import org.slf4j.LoggerFactory
 import tech.edgx.prise.indexer.config.Config
+import tech.edgx.prise.indexer.event.PoolReservesComputedEvent
 import tech.edgx.prise.indexer.event.SwapsComputedEvent
 import tech.edgx.prise.indexer.model.FullyQualifiedTxDTO
 import tech.edgx.prise.indexer.service.classifier.DexClassifier
@@ -24,14 +25,37 @@ class SwapProcessor(val config: Config) : KoinComponent {
         .filter { config.dexClassifiers?.contains(it.second.getDexName()) ?: false }
         .toMap()
 
-    fun processBlock(block: Block): SwapsComputedEvent {
+    fun processBlock(block: Block): Pair<SwapsComputedEvent, PoolReservesComputedEvent> {
         val blockSlot = block.header.headerBody.slot
+        log.debug("SwapProcessor.processBlock: blockSlot={}", blockSlot)
+
         val qualifiedTxs = qualifyTransactions(blockSlot, block.transactionBodies, block.transactionWitness)
+
+        // Early exit for blocks with no DEX transactions - fast path
+        if (qualifiedTxs.isEmpty()) {
+            log.debug("SwapProcessor.processBlock: No DEX transactions in block")
+            return Pair(
+                SwapsComputedEvent(blockSlot, emptyList()),
+                PoolReservesComputedEvent(blockSlot, emptyList())
+            )
+        }
+
+        log.debug("SwapProcessor.processBlock: qualified {} transactions", qualifiedTxs.size)
+
         val swaps = qualifiedTxs.flatMap { tx ->
             dexClassifierMap[tx.dexCredential]?.computeSwaps(tx).orEmpty()
         }
-        log.debug("Found # swaps: {}", swaps.size)
-        return SwapsComputedEvent(blockSlot, swaps)
+        log.debug("SwapProcessor.processBlock: Found {} swaps", swaps.size)
+
+        val poolReserves = qualifiedTxs.flatMap { tx ->
+            dexClassifierMap[tx.dexCredential]?.computePoolReserves(tx).orEmpty()
+        }
+        log.debug("SwapProcessor.processBlock: Found {} pool reserves", poolReserves.size)
+
+        return Pair(
+            SwapsComputedEvent(blockSlot, swaps),
+            PoolReservesComputedEvent(blockSlot, poolReserves)
+        )
     }
 
     fun qualifyTransactions(blockSlot: Long, transactionBodies: List<TransactionBody>, transactionWitnesses: List<Witnesses>): List<FullyQualifiedTxDTO> {

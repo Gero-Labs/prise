@@ -82,21 +82,29 @@ class BlockfrostService(private val config: Config) : KoinComponent, ChainDataba
         val txs = txRequests.map { request ->
             log.debug("Blockfrost request: $request, headers: ${request.headers()}, body: $request")
             var attempts = 0
-            var response: HttpResponse<String>
+            var response: HttpResponse<String>? = null
             /* May be unsynchronised or congested, try for MAX_ATTEMPTS then shutdown for rectification */
             runBlocking {
                 do {
-                    response = client.send(request, HttpResponse.BodyHandlers.ofString())
-                    if (response.statusCode() != 200) {
-                        log.debug("Blockfrost had error requesting utxos: $txIns")
-                        if (attempts==0 || attempts % 100 == 0) log.info("Blockfrost had error requesting utxos... waiting ... attempts: $attempts")
-                        if (attempts >= MAX_UTXO_ATTEMPTS) throw ExternalProviderException("Tried to get utxos from Blockfrost ${MAX_UTXO_ATTEMPTS} times and failed, exiting")
+                    try {
+                        response = client.send(request, HttpResponse.BodyHandlers.ofString())
+                        if (response?.statusCode() != 200) {
+                            log.debug("Blockfrost had error requesting utxos: $txIns")
+                            if (attempts==0 || attempts % 100 == 0) log.info("Blockfrost had error requesting utxos... waiting ... attempts: $attempts")
+                            if (attempts >= MAX_UTXO_ATTEMPTS) throw ExternalProviderException("Tried to get utxos from Blockfrost ${MAX_UTXO_ATTEMPTS} times and failed, exiting")
+                            attempts++
+                            delay(TimeUnit.SECONDS.toMillis(5))
+                        }
+                    } catch (e: java.io.IOException) {
+                        log.warn("Blockfrost IOException (attempt $attempts): ${e.message}")
+                        if (attempts >= MAX_UTXO_ATTEMPTS) throw ExternalProviderException("Tried to get utxos from Blockfrost ${MAX_UTXO_ATTEMPTS} times and failed with IOException: ${e.message}")
                         attempts++
                         delay(TimeUnit.SECONDS.toMillis(5))
+                        response = null
                     }
-                } while (response.statusCode() != 200)
+                } while (response?.statusCode() != 200)
             }
-            val utxos: Transaction = Gson().fromJson(response.body(), Transaction::class.java)
+            val utxos: Transaction = Gson().fromJson(response!!.body(), Transaction::class.java)
             utxos
         }
         val seeking = txIns.map { it.transactionId+it.index }

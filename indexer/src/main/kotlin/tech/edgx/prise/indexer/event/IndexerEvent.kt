@@ -3,6 +3,7 @@ package tech.edgx.prise.indexer.event
 import com.bloxbean.cardano.yaci.core.model.Block
 import com.bloxbean.cardano.yaci.core.protocol.chainsync.messages.Point
 import tech.edgx.prise.indexer.domain.Price
+import tech.edgx.prise.indexer.model.dex.PoolReserveDTO
 import tech.edgx.prise.indexer.model.dex.SwapDTO
 
 sealed class IndexerEvent {
@@ -11,6 +12,7 @@ sealed class IndexerEvent {
 }
 data class BlockReceivedEvent(val block: Block, val startTime: Long = System.currentTimeMillis()) : IndexerEvent()
 data class SwapsComputedEvent(val blockSlot: Long, val swaps: List<SwapDTO>) : IndexerEvent()
+data class PoolReservesComputedEvent(val blockSlot: Long, val poolReserves: List<PoolReserveDTO>) : IndexerEvent()
 data class PricesCalculatedEvent(val blockSlot: Long, val prices: List<Price>) : IndexerEvent() {
     override val isFinalBlockEvent: Boolean = true
 }

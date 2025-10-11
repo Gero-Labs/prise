@@ -13,6 +13,7 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 import org.ktorm.database.Database
 import org.slf4j.LoggerFactory
+import org.flywaydb.core.Flyway
 import tech.edgx.prise.indexer.config.Config
 import tech.edgx.prise.indexer.config.Configurer
 import tech.edgx.prise.indexer.domain.Asset
@@ -61,6 +62,7 @@ val priseModules = module {
     single { BaseCandleRepository() }
     single { TxService() }
     single { PriceService() }
+    single { PoolReserveService() }
 
     single { DbService() }
 
@@ -88,10 +90,13 @@ val priseModules = module {
             .build()
     }
 
+    single { tech.edgx.prise.indexer.service.UtxoCache(maxSize = 100000) }
+
     single(named(ChainDatabaseServiceEnum.carpJDBC.name)) { CarpJdbcService() } bind ChainDatabaseService::class
     single(named(ChainDatabaseServiceEnum.koios.name)) { KoiosService(get()) } bind ChainDatabaseService::class
     single(named(ChainDatabaseServiceEnum.blockfrost.name)) { BlockfrostService(get()) } bind ChainDatabaseService::class
     single(named(ChainDatabaseServiceEnum.yacistore.name)) { YaciStoreService(get()) } bind ChainDatabaseService::class
+    single(named(ChainDatabaseServiceEnum.hybrid.name)) { tech.edgx.prise.indexer.service.dataprovider.module.hybrid.HybridCachedService(get()) } bind ChainDatabaseService::class
 
     single(named(TokenMetadataServiceEnum.tokenRegistry.name)) { TokenRegistryService() } bind TokenMetadataService::class
 
@@ -156,6 +161,16 @@ class PriseRunner(private val args: Array<String>) : KoinComponent {
 
         val config: Config by inject()
         log.info("Config: $config")
+
+        // Run database migrations
+        log.info("Running database migrations...")
+        val flyway = Flyway.configure()
+            .dataSource(config.appDataSource)
+            .locations("classpath:db/migration")
+            .baselineOnMigrate(true)
+            .load()
+        val migrationsApplied = flyway.migrate()
+        log.info("Applied $migrationsApplied database migration(s)")
 
         val monitoringService: Optional<MonitoringService> = if (config.startMetricsServer == true) {
             val monitoringService: MonitoringService by inject { parametersOf(config.metricsServerPort) }

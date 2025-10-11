@@ -52,7 +52,7 @@ dependencies {
 tasks.named<KotlinJvmCompile>("compileKotlin"){
     compilerOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-        //jvmTarget = JvmTarget.JVM_17
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

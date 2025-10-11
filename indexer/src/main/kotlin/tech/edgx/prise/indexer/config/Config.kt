@@ -14,6 +14,7 @@ data class Config(
     var appDatasourceDriverClassName: String = "com.mysql.cj.jdbc.Driver",
     var tokenMetadataServiceModule: String = "tokenRegistry",
     var chainDatabaseServiceModule: String = "yacistore",
+    var fallbackChainDatabaseServiceModule: String = "blockfrost",
     var carpDatasourceUrl: String? = "jdbc:postgresql://localhost:5432/carp_mainnet?currentSchema=public",
     var carpDatasourceUsername: String? = "postgres",
     var carpDatasourcePassword: String? = "<pass>",
