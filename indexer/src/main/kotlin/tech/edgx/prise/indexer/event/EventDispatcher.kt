@@ -131,7 +131,14 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                         }
                     }
                 } catch (e: Exception) {
-                    log.error("Error processing event $event", e)
+                    val errorContext = when (event) {
+                        is BlockReceivedEvent -> "block=${event.block.header.headerBody.blockNumber}, slot=${event.block.header.headerBody.slot}"
+                        is SwapsComputedEvent -> "slot=${event.blockSlot}, swaps=${event.swaps.size}"
+                        is PoolReservesComputedEvent -> "slot=${event.blockSlot}, reserves=${event.poolReserves.size}"
+                        is PricesCalculatedEvent -> "slot=${event.blockSlot}, prices=${event.prices.size}"
+                        is RollbackEvent -> "point=${event.point.slot}"
+                    }
+                    log.error("Error processing event: $errorContext - ${e.message}", e)
                     monitoringService.incrementCounter("event_processing_failed")
                     if (event.isFinalBlockEvent) {
                         chainService.signalBlockProcessed()

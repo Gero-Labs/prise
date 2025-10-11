@@ -113,7 +113,7 @@ jobs:
           git config --global user.email "edridudi@users.noreply.github.com"
           git add indexer/build.gradle.kts webserver/build.gradle.kts
           if ! git diff-index --quiet HEAD --; then
-            git commit -m "chore: bump version to ${{ env.VERSION }}"
+            git commit -m "chore: bump version to ${{ env.VERSION }} [skip ci]"
             git push
           else
             echo "No changes to commit, skipping version bump commit."

@@ -287,8 +287,9 @@ class AssetServiceImpl(
                         (SELECT price FROM latest_price
                          WHERE asset_id = (SELECT id FROM asset WHERE unit = 'lovelace')
                            AND quote_asset_id IN (SELECT id FROM asset WHERE unit LIKE '%USDT' OR unit LIKE '%USDC')
+                         ORDER BY time DESC
                          LIMIT 1),
-                        0
+                        NULL
                     ) AS tvl_in_usd
                 FROM pool_tvl
                 ORDER BY tvl_in_ada DESC
