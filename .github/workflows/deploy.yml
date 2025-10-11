@@ -58,7 +58,7 @@ jobs:
       - name: Upload JARs to MinIO
         run: |
           mc put indexer/build/libs/indexer-*.jar myminio/prise/gha-artifacts/indexer.jar
-          mc put webserver/build/libs/webserver-*.jar myminio/prise/gha-artifacts/webserver.jar
+          mc put webserver/build/libs/webserver-[0-9]*.jar myminio/prise/gha-artifacts/webserver.jar
 
       - name: Logout from Tailscale
         if: always()
@@ -141,8 +141,8 @@ jobs:
       - name: Download JARs from MinIO
         run: |
           mkdir -p indexer/build/libs webserver/build/libs
-          mc get myminio/prise/gha-artifacts/indexer.jar indexer/build/libs/indexer-${{ env.VERSION }}.jar
-          mc get myminio/prise/gha-artifacts/webserver.jar webserver/build/libs/webserver-${{ env.VERSION }}.jar
+          mc get myminio/prise/gha-artifacts/indexer.jar indexer/build/libs/indexer.jar
+          mc get myminio/prise/gha-artifacts/webserver.jar webserver/build/libs/webserver.jar
 
       # 6) Build and push Docker images
       - name: Set up Docker Buildx
