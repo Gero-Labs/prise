@@ -40,6 +40,7 @@ build/
 
 *.properties
 !gradle-wrapper.properties
+!prise.properties
 !prise.example.properties
 !prise.example.docker.properties
 !application.properties
