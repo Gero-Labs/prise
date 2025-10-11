@@ -13,6 +13,7 @@ import tech.edgx.prise.webserver.model.tokens.TopGainersRequest
 import tech.edgx.prise.webserver.model.tokens.GainerAssetResponse
 import tech.edgx.prise.webserver.model.tvl.TopTvlRequest
 import tech.edgx.prise.webserver.model.tvl.PoolTvlResponse
+import tech.edgx.prise.webserver.util.DexEnum
 import java.sql.SQLException
 
 interface AssetService {
@@ -298,12 +299,11 @@ class AssetServiceImpl(
                 .param("limit", topTvlRequest.limit)
                 .query { rs, _ ->
                     val providerCode = rs.getInt("provider")
-                    val providerName = when (providerCode) {
-                        0 -> "Wingriders"
-                        1 -> "Sundaeswap"
-                        2 -> "Minswap"
-                        3 -> "MinswapV2"
-                        else -> "Unknown"
+                    val providerName = try {
+                        DexEnum.fromId(providerCode).friendlyName
+                    } catch (e: IllegalArgumentException) {
+                        log.warn("Unknown DEX provider code: $providerCode")
+                        "Unknown"
                     }
                     PoolTvlResponse(
                         poolId = rs.getString("pool_id"),

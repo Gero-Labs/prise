@@ -140,10 +140,11 @@ class EventDispatcher(private val config: Config) : KoinComponent {
                     }
                     log.error("Error processing event: $errorContext - ${e.message}", e)
                     monitoringService.incrementCounter("event_processing_failed")
-                    if (event.isFinalBlockEvent) {
-                        chainService.signalBlockProcessed()
-                    } else if (event is RollbackEvent) {
-                        chainService.signalRollbackProcessed() // Ensure rollback latch is released
+
+                    // Signal appropriate completion based on event type
+                    when (event) {
+                        is RollbackEvent -> chainService.signalRollbackProcessed()
+                        else -> if (event.isFinalBlockEvent) chainService.signalBlockProcessed()
                     }
                 }
             }
