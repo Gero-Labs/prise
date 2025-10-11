@@ -40,6 +40,7 @@ data class Config(
     var messagingChannel: String? = "prise-events",
     var messagingUsername: String? = null,
     var messagingPassword: String? = null,
+    var eventBusBufferSize: Int = 50,
     val refreshableViews: Map<String, RefreshableView> = mapOf(
         "candle_fifteen" to RefreshableView(
             cronSchedule = "0 0/15 * * * ?", // Every 15 minutes (00, 15, 30, 45)

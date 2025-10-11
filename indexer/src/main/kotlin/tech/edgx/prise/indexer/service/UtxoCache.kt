@@ -8,14 +8,24 @@ import java.util.concurrent.ConcurrentHashMap
  * In-memory cache for UTXOs from recently processed blocks.
  * Reduces dependency on external services (Blockfrost, Koios, etc.) by caching
  * outputs from blocks we've already seen.
+ *
+ * **Thread Safety**:
+ * - Uses ConcurrentHashMap for cache storage (thread-safe reads)
+ * - Uses ArrayDeque for LRU tracking (NOT thread-safe)
+ * - All mutations (addOutputs, removeSpentUtxos, clear) are synchronized on class instance
+ * - Read operations (getUtxo, getUtxos) are lock-free for better performance
+ * - The insertionOrder ArrayDeque is only accessed within synchronized blocks
+ *
+ * **Usage**: This class is designed for single-writer (EventDispatcher), multiple-reader scenarios.
+ * All write operations MUST go through the synchronized methods to prevent corruption.
  */
 class UtxoCache(private val maxSize: Int = 100000) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // Key: txHash#outputIndex, Value: TransactionOutput
+    // Key: txHash#outputIndex, Value: TransactionOutput (thread-safe for reads)
     private val cache = ConcurrentHashMap<String, TransactionOutput>()
 
-    // Track insertion order for LRU eviction
+    // Track insertion order for LRU eviction (NOT thread-safe - protected by synchronized blocks)
     private val insertionOrder = ArrayDeque<String>()
 
     /**

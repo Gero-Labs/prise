@@ -82,7 +82,19 @@ class HybridCachedService(private val config: Config) : KoinComponent, ChainData
         missingFromCache.forEachIndexed { index, txIn ->
             if (index < fetchedUtxos.size) {
                 fetchedMap["${txIn.transactionId}#${txIn.index}"] = fetchedUtxos[index]
+            } else {
+                // Fallback service returned fewer UTXOs than requested
+                log.warn("UTXO resolution failure: Missing UTXO for {}#{} (index {} >= fetched size {})",
+                    txIn.transactionId, txIn.index, index, fetchedUtxos.size)
             }
+        }
+
+        // Check for any missing UTXOs and log warning
+        val resolvedCount = cachedUtxos.size + fetchedMap.size
+        if (resolvedCount < txIns.size) {
+            val missingCount = txIns.size - resolvedCount
+            log.warn("Failed to resolve {} out of {} UTXOs ({}% failure rate)",
+                missingCount, txIns.size, (missingCount.toDouble() / txIns.size * 100).toInt())
         }
 
         // Return combined results (maintain original order)
