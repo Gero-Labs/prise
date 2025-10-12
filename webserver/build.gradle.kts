@@ -60,6 +60,10 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName.set("webserver.jar")
+}
+
 sourceSets {
     main {
         java.srcDirs("src/main/java", "src/main/kotlin")

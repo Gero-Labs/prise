@@ -57,10 +57,8 @@ jobs:
       # 5) Upload artifacts to MinIO
       - name: Upload JARs to MinIO
         run: |
-          mc put indexer/build/libs/indexer-*.jar myminio/prise/gha-artifacts/indexer.jar
-          # Exclude -plain.jar by using bash extended globbing
-          shopt -s extglob
-          mc put webserver/build/libs/webserver-!(*-plain).jar myminio/prise/gha-artifacts/webserver.jar
+          mc put indexer/build/libs/indexer.jar myminio/prise/gha-artifacts/indexer.jar
+          mc put webserver/build/libs/webserver.jar myminio/prise/gha-artifacts/webserver.jar
 
       - name: Logout from Tailscale
         if: always()

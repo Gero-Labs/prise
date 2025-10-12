@@ -119,6 +119,7 @@ tasks.withType<Test> {
 }
 
 tasks.jar {
+    archiveFileName.set("indexer.jar")
     manifest.attributes["Main-Class"] = "tech.edgx.prise.indexer.PriseRunner"
     // Needed otherwise complains no main class
     exclude("META-INF/*.RSA", "META-INF/*.SF", "META-INF/*.DSA")
