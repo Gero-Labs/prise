@@ -9,7 +9,7 @@ plugins {
     idea
 }
 
-version = "0.1.5"
+version = "0.1.6"
 description = "Prise Webserver"
 
 java {
