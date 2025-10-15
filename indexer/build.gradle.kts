@@ -23,7 +23,7 @@ plugins {
 tasks.named("distZip") { enabled = false }
 tasks.named("distTar") { enabled = false }
 
-version = "0.1.7"
+version = "0.1.8"
 description = "Prise Indexer"
 java.sourceCompatibility = JavaVersion.VERSION_11
 java.targetCompatibility = JavaVersion.VERSION_11
