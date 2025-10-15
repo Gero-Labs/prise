@@ -27,6 +27,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web:3.4.3")
     implementation("org.springframework.boot:spring-boot-starter-security:3.4.3")
     implementation("org.springframework.boot:spring-boot-starter-validation:3.4.3")
+    implementation("org.springframework.boot:spring-boot-starter-actuator:3.4.3")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     runtimeOnly("org.postgresql:postgresql")
     implementation("com.google.code.gson:gson:2.11.0")
